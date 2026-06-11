@@ -18,6 +18,10 @@
   `maxSize` when the first pass is still too large.
 - Minimum Dart SDK is now 3.0.0 (already required transitively by
   `image` >= 4.x).
+- Added a CI workflow (format check, analyzer, tests) and expanded the test
+  suite from 1 to 23 tests.
+- Docs: fixed the README usage example (it didn't compile), documented the
+  compression pipeline, and regenerated the example output image.
 
 ## 1.0.0
 

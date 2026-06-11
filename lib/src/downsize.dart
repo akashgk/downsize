@@ -19,7 +19,21 @@ class Config {
   Config({required this.data, this.minQuality = 60, this.maxSize});
 }
 
+/// Pure Dart image compression across multiple formats.
+///
+/// PNG input stays PNG (resize + palette quantization); every other
+/// supported format (JPG, GIF, BMP, TIFF, TGA, PVR, ICO, ...) is
+/// re-encoded as JPG with a stepwise quality search.
 class Downsize {
+  /// Compress [data] toward [maxSize] (in KB) without dropping the JPG
+  /// quality below [minQuality].
+  ///
+  /// Returns the original bytes when [data] is already smaller than
+  /// [maxSize], or when compression would not make it smaller. The heavy
+  /// decoding/encoding work runs on a background isolate on native
+  /// platforms, so this is safe to await from the UI thread.
+  ///
+  /// Throws an [Exception] if [data] is not a supported image format.
   static Future<Uint8List?> downsize({
     required Uint8List data,
     int minQuality = 60,
