@@ -19,9 +19,8 @@ void main() {
       final original = img.decodeImage(data)!;
       final compressed = await Downsize.downsize(data: data);
       final result = img.decodeImage(compressed!)!;
-      final originalLongest = original.width > original.height
-          ? original.width
-          : original.height;
+      final originalLongest =
+          original.width > original.height ? original.width : original.height;
       final resultLongest =
           result.width > result.height ? result.width : result.height;
       expect(resultLongest, lessThan(originalLongest));
@@ -60,7 +59,8 @@ void main() {
       final source = img.Image(width: 2400, height: 1600);
       for (var y = 0; y < source.height; y++) {
         for (var x = 0; x < source.width; x++) {
-          source.setPixelRgb(x, y, (x * 7) % 256, (y * 13) % 256, (x + y) % 256);
+          source.setPixelRgb(
+              x, y, (x * 7) % 256, (y * 13) % 256, (x + y) % 256);
         }
       }
       final jpg = img.encodeJpg(source, quality: 100);
