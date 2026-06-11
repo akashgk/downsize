@@ -5,7 +5,7 @@ import 'package:downsize/downsize.dart';
 /// helpful extensions for Uint8List.
 extension Uint8ListDownsize on Uint8List {
   /// return data size in KB.
-  double get sizeKb => (lengthInBytes / 1024).roundToDouble();
+  double get sizeKb => lengthInBytes / 1024;
 
   /// Decrease data size.
   Future<Uint8List?> downsize({
