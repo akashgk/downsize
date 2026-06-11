@@ -23,7 +23,7 @@ This package is built on top of the **[image](https://pub.dev/packages/image)** 
 
 ### Prerequisites
 
-- Dart SDK version **2.12.0** or higher: [Install Dart](https://dart.dev/get-dart).
+- Dart SDK version **3.0.0** or higher: [Install Dart](https://dart.dev/get-dart).
 
 ### Installation
 

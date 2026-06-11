@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:downsize/downsize.dart';
 import 'package:image/image.dart';
 
+import 'runner/runner_none.dart' if (dart.library.io) 'runner/runner_io.dart';
+
 /// Config class holds raw data with compression options.
 class Config {
   /// initial image data.
@@ -22,48 +24,44 @@ class Downsize {
     required Uint8List data,
     int minQuality = 60,
     double? maxSize,
-  }) async {
-    if (data.isEmpty) return data;
-    return Downsize().compress(Config(
+  }) {
+    if (data.isEmpty || (maxSize != null && data.sizeKb <= maxSize)) {
+      return Future.value(data);
+    }
+    final config = Config(
       data: data,
       minQuality: minQuality,
       maxSize: maxSize,
-    ));
+    );
+    return runTask(() => Downsize().compress(config));
   }
 
   /// Decode and Compress image data.
   Uint8List? compress(Config config) {
+    // Skip the expensive decode entirely when the file is already small
+    // enough.
+    if (config.maxSize != null && config.data.sizeKb <= config.maxSize!) {
+      return config.data;
+    }
+
     Image? image = decodeImage(config.data);
     if (image == null) {
       throw Exception("Unsupported image type.");
     }
 
-    bool isJpg = JpegDecoder().isValidFile(config.data);
-    bool isPng = isJpg ? false : PngDecoder().isValidFile(config.data);
+    bool isPng = PngDecoder().isValidFile(config.data);
 
-    if (!isPng && !isJpg) {
-      Uint8List data = encodeJpg(image);
-      image = decodeImage(data);
-      if (image == null) {
-        throw Exception("Unsupported image type.");
-      }
-      isJpg = true;
-    }
+    // PNG keeps its format; everything else (JPG, GIF, BMP, TIFF, ...) is
+    // encoded as JPG.
+    final result = isPng
+        ? compressPng(image: image, config: config)
+        : compressJpg(image: image, config: config);
 
-    var fileSize = config.data.sizeKb;
-    // print('Old File Size Is: ${fileSize}kb, desired size: ${config.maxSize}kb');
-    if (config.maxSize != null && fileSize <= config.maxSize!) {
+    // Never return more bytes than we started with.
+    if (result.lengthInBytes >= config.data.lengthInBytes) {
       return config.data;
     }
-
-    // print("image dimensions: ${image.width}/${image.height}");
-
-    if (isPng) {
-      // print('compressPng()');
-      return compressPng(image: image, config: config);
-    }
-    // print('compressJpg()');
-    return compressJpg(image: image, config: config);
+    return result;
   }
 
   /// Compress JPG image.
@@ -75,20 +73,14 @@ class Downsize {
   }) {
     if (preTreatment) {
       image = dynamicResize(image);
-      // print("resized to dimensions: ${image.width}/${image.height}");
     }
 
-    final im = encodeJpg(image, quality: quality);
-    if (config.maxSize != null &&
-        im.sizeKb > config.maxSize! &&
-        (quality - 10) >= config.minQuality) {
-      // print('quality => ${quality - 10}');
-      return compressJpg(
-        image: image,
-        config: config,
-        quality: quality - 10,
-        preTreatment: false,
-      );
+    var im = encodeJpg(image, quality: quality);
+    if (config.maxSize == null) return im;
+
+    while (im.sizeKb > config.maxSize! && quality - 10 >= config.minQuality) {
+      quality -= 10;
+      im = encodeJpg(image, quality: quality);
     }
 
     return im;
@@ -100,24 +92,39 @@ class Downsize {
     required Config config,
     int level = 9,
   }) {
-    int width = image.width;
-    int height = image.height;
-
     image = dynamicResize(image);
-    // print("resized to dimensions: ${image.width}/${image.height}");
 
-    // remove transparency
-    image = copyResize(
-      image,
-      backgroundColor: ColorRgb8(255, 255, 255),
-      width: width,
-      height: height,
-    );
+    // remove transparency: flatten onto a white background before quantizing.
+    if (image.hasAlpha) {
+      final background = Image(
+        width: image.width,
+        height: image.height,
+        numChannels: 3,
+      );
+      background.clear(ColorRgb8(255, 255, 255));
+      image = compositeImage(background, image);
+    }
 
     // downsize the number of colors (to 8-bit)
-    image = quantize(image, numberOfColors: 256);
+    var im = encodePng(
+      quantize(image, numberOfColors: 256),
+      level: level,
+      filter: PngFilter.none,
+    );
 
-    var im = encodePng(image, level: level, filter: PngFilter.none);
+    // Step the palette down until the target size is reached.
+    if (config.maxSize != null) {
+      for (final colors in const [128, 64, 32, 16]) {
+        if (im.sizeKb <= config.maxSize!) break;
+        final candidate = encodePng(
+          quantize(image, numberOfColors: colors),
+          level: level,
+          filter: PngFilter.none,
+        );
+        if (candidate.lengthInBytes >= im.lengthInBytes) break;
+        im = candidate;
+      }
+    }
 
     return im;
   }
